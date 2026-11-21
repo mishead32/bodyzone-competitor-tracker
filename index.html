@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bodyzone Market Intelligence</title>
+<style>
+  :root { --ink:#1b1f24; --muted:#6a727c; --line:#e3e6ea; --bg:#f6f7f9; --accent:#d9480f; --ok:#2b8a3e; --bad:#c92a2a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:16px 24px; }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  main { max-width:1300px; margin:0 auto; padding:20px 24px 60px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab { background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 16px; font:inherit; font-weight:600; cursor:pointer; }
+  .tab.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  label { font-size:13px; font-weight:600; display:block; margin-bottom:6px; }
+  textarea, input[type=password] { width:100%; border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; font-size:14px; }
+  textarea { min-height:120px; resize:vertical; }
+  .row { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:200px; }
+  button.go { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 18px; font:inherit; font-weight:600; cursor:pointer; }
+  button.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 14px; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .hint { font-size:12px; color:var(--muted); margin-top:6px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:#fafbfc; white-space:nowrap; }
+  .wrap { overflow-x:auto; }
+  .st-ok { color:var(--ok); font-weight:600; }
+  .st-bad { color:var(--bad); font-weight:600; }
+  .st-wait { color:var(--muted); }
+  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap; }
+  .line div { margin-bottom:3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bodyzone Market Intelligence</h1>
+  <p>Paste public web links. The tool reads each page and pulls out competitor gym details, trainer job openings or local fitness trends.</p>
+</header>
+<main>
+  <div class="card">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-mode="gym">Competitor gyms</button>
+      <button class="tab" data-mode="jobs">Trainer jobs</button>
+      <button class="tab" data-mode="trends">Local trends &amp; offers</button>
+      <button class="tab" data-mode="leads">Business leads (pilot)</button>
+    </div>
+    <div id="findPanel" style="display:none;border:1px dashed var(--line);border-radius:8px;padding:12px;margin-bottom:14px">
+      <strong>Step 1: Find pages</strong>
+      <div class="row" style="margin-top:8px">
+        <div><label for="cat">Who to look for</label>
+          <select id="cat" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit">
+            <option value="companies offices list {area} IT Park business directory">Corporates / offices</option>
+            <option value="residential societies apartments RWA list {area}">Residential societies</option>
+            <option value="physiotherapy dietician wellness clinics {area} contact">Health partners (physio, dietician, clinics)</option>
+            <option value="colleges coaching institutes {area} contact">Colleges and institutes</option>
+            <option value="wedding planners event organisers bridal salons {area}">Wedding planners and events</option>
+          </select></div>
+        <div><label for="area">Area</label>
+          <input id="area" value="Mohali Chandigarh Panchkula" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:14px"></div>
+        <div style="flex:0"><button class="secondary" id="find">Find pages</button></div>
+      </div>
+      <div id="found" class="hint" style="margin-top:8px"></div>
+      <div class="hint">Step 2 below: the links you keep are read and turned into a lead list.</div>
+    </div>
+    <label for="urls" id="urlsLabel">Links (one per line)</label>
+    <textarea id="urls"></textarea>
+    <div class="hint" id="modeHint"></div>
+    <div class="row" style="margin-top:12px">
+      <div>
+        <label for="pw">Password</label>
+        <input type="password" id="pw" placeholder="Enter the tool password">
+      </div>
+      <div style="flex:0;display:flex;gap:8px">
+        <button class="secondary" id="preset">Fill example links</button>
+        <button class="go" id="go">Extract</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="bar">
+      <strong id="summary"></strong>
+      <span><button class="secondary" id="copy" disabled>Copy for Google Sheet</button> <button class="secondary" id="csv" disabled>Download CSV</button></span>
+    </div>
+    <div class="wrap"><table><thead id="thead"></thead><tbody id="rows"></tbody></table></div>
+    <div class="hint">Always spot-check a few values against the real page before sharing with CMD Sir. Blank = not found on that page. Some sites (for example job portals) block scrapers and will show Failed.</div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const arr = (v) => (Array.isArray(v) ? v : []);
+const join = (v, sep) => arr(v).filter(Boolean).join(sep || ", ");
+
+// Each mode: columns, how to turn one result into table rows (array of arrays), hint and example links.
+const MODES = {
+  gym: {
+    hint: "Use the page that shows prices (Membership / Pricing / Plans) where possible.",
+    examples: [
+      "https://www.anytimefitness.com/en-in/locations/chandigarh-chandigarh-in-1058",
+      "https://www.anytimefitness.com/en-in/locations/chandigarh-chandigarh-in-1107",
+      "https://www.cure.fit/lp/cult/center/gyms-in-chandigarh",
+      "https://fitpass.co.in/studio/pro-ultimate-gyms-sector-14-panchkula",
+      "https://fitpass.co.in/chandigarh/fitness-centers"
+    ],
+    cols: ["Gym", "Plans & prices", "Joining fee", "PT price", "Offers", "Timings", "Phone", "Address", "Facilities"],
+    rows: (d) => [[
+      d.gym_name,
+      arr(d.plans).map((p) => [p.plan_name, p.duration, p.price].filter(Boolean).join(" - ")).join("\n"),
+      d.joining_fee, d.personal_training_price, d.offers, d.timings, d.phone, d.address, join(d.facilities)
+    ]]
+  },
+  jobs: {
+    hint: "Use job-listing pages for gym / personal trainer roles in Chandigarh, Mohali and Panchkula.",
+    examples: [
+      "https://www.placementindia.com/job-detail/personal-trainer-in-anytime-fitness-at-sector-10-panchkula-1334398.htm",
+      "https://www.mncjobsindia.com/jobs/gym-trainer-pb-4601334",
+      "https://in.indeed.com/Gym-Trainer-jobs-in-Chandigarh,-Chandigarh"
+    ],
+    cols: ["Employer", "Job title", "Location", "Salary", "Incentives", "Experience", "Qualification", "Openings", "Days & hours", "Contact", "Posted"],
+    rows: (d) => {
+      const jobs = arr(d.jobs);
+      if (!jobs.length) return [[d.employer, "", "", "", "", "", "", "", "", "", ""]];
+      return jobs.map((j) => [d.employer, j.title, j.location, j.salary, j.incentives, j.experience_required,
+        j.qualification, j.openings, j.working_days_and_hours, j.contact, j.posted_date]);
+    }
+  },
+  trends: {
+    hint: "Use articles, reports or offer pages about fitness in India / Chandigarh.",
+    examples: [
+      "https://www.grabon.in/indulge/tech/fitness-industry-statistics/",
+      "https://kadence.com/knowledge/how-consumer-behaviour-is-reshaping-indias-fitness-market/",
+      "https://fitpass.co.in/blog/best-fitness-centers-in-chandigarh"
+    ],
+    cols: ["Page", "Summary", "Key trends", "Offers / promotions", "Price points", "Popular services", "Statistics"],
+    rows: (d) => [[
+      d.page_title, d.summary, join(d.key_trends, "\n"), join(d.offers_or_promotions, "\n"),
+      join(d.price_points, "\n"), join(d.popular_services), join(d.statistics, "\n")
+    ]]
+  }
+  ,
+  leads: {
+    hint: "Use directory, list or news pages naming companies, societies, clinics or institutes. Public business details only. Hot / Warm / Cold is a simple example rule: published phone or email, location in the Tricity area, and 50+ employees if stated.",
+    examples: [],
+    cols: ["Score", "Organisation", "Category", "Address", "Phone", "Email", "Website", "Employees", "Notes"],
+    rows: (d, ctx) => {
+      const out = [];
+      arr(d.organisations).forEach((o) => {
+        if (!o || !o.name) return;
+        const key = (o.name + "|" + String(o.phone || "").replace(/\D/g, "")).toLowerCase();
+        if (ctx && ctx.seen) { if (ctx.seen.has(key)) return; ctx.seen.add(key); }
+        out.push([scoreLead(o), o.name, o.category, o.address, o.phone, o.email, o.website, o.employee_count, o.notes]);
+      });
+      return out;
+    }
+  }
+};
+
+const AREA_WORDS = ["chandigarh", "mohali", "panchkula", "zirakpur", "kharar", "sas nagar", "s.a.s. nagar", "derabassi", "dera bassi", "mullanpur", "new chandigarh"];
+function scoreLead(o) {
+  let pts = 0;
+  if (o.phone || o.email) pts += 2;
+  const addr = String(o.address || "").toLowerCase();
+  if (AREA_WORDS.some((w) => addr.includes(w))) pts += 2;
+  const n = parseInt(String(o.employee_count || "").replace(/[^0-9]/g, ""), 10);
+  if (n >= 50) pts += 1;
+  return pts >= 4 ? "Hot" : pts >= 2 ? "Warm" : "Cold";
+}
+
+let mode = "gym";
+let results = []; // {url, status, data, error}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  $("modeHint").textContent = MODES[m].hint;
+  $("findPanel").style.display = m === "leads" ? "block" : "none";
+  $("found").textContent = "";
+  $("urlsLabel").textContent = "Links (one per line)";
+  $("urls").value = "";
+  results = [];
+  render();
+}
+document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+$("preset").addEventListener("click", () => {
+  if (!MODES[mode].examples.length) { alert("For Business leads, use Step 1: Find pages."); return; }
+  $("urls").value = MODES[mode].examples.join("\n");
+});
+
+function render() {
+  const M = MODES[mode];
+  $("resultCard").style.display = results.length ? "block" : "none";
+  const done = results.filter((r) => r.status === "ok").length;
+  const failed = results.filter((r) => r.status === "error").length;
+  $("summary").textContent = done + " done, " + failed + " failed, " + (results.length - done - failed) + " waiting";
+  $("csv").disabled = done === 0;
+  $("copy").disabled = done === 0;
+  $("thead").innerHTML = "<tr><th>Status</th>" + M.cols.map((c) => "<th>" + esc(c) + "</th>").join("") + "<th>Source</th></tr>";
+
+  const ctx = { seen: new Set() };
+  $("rows").innerHTML = results.map((r) => {
+    const st = r.status === "ok" ? '<span class="st-ok">Done</span>'
+      : r.status === "error" ? '<span class="st-bad">Failed</span><div class="hint">' + esc(r.error) + "</div>"
+      : '<span class="st-wait">' + (r.status === "running" ? "Reading..." : "Waiting") + "</span>";
+    const link = '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">Open</a>';
+    if (r.status !== "ok") {
+      return "<tr><td>" + st + "</td>" + M.cols.map(() => "<td></td>").join("") + "<td>" + link + "</td></tr>";
+    }
+    return M.rows(r.data || {}, ctx).map((cells) =>
+      "<tr><td>" + st + "</td>" + cells.map((c) => '<td class="line">' + esc(c).replace(/\n/g, "<br>") + "</td>").join("") + "<td>" + link + "</td></tr>"
+    ).join("");
+  }).join("");
+}
+
+async function extractOne(r, password, m) {
+  r.status = "running"; render();
+  try {
+    const resp = await fetch("/api/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: r.url, password, mode: m }),
+    });
+    const out = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(out.error || "HTTP " + resp.status);
+    r.data = out.data; r.status = "ok";
+  } catch (e) {
+    r.status = "error"; r.error = e.message;
+  }
+  render();
+}
+
+$("go").addEventListener("click", async () => {
+  const urls = [...new Set($("urls").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))];
+  if (!urls.length) { alert("Please paste at least one link (or click 'Fill example links')."); return; }
+  const bad = urls.filter((u) => !/^https?:\/\//i.test(u));
+  if (bad.length) { alert("These links must start with http:// or https://\n\n" + bad.join("\n")); return; }
+
+  const m = mode;
+  results = urls.map((u) => ({ url: u, status: "waiting" }));
+  render();
+  $("go").disabled = true;
+  const password = $("pw").value;
+  const queue = [...results];
+  const worker = async () => { while (queue.length) await extractOne(queue.shift(), password, m); };
+  await Promise.all([worker(), worker()]);
+  $("go").disabled = false;
+});
+
+$("csv").addEventListener("click", () => {
+  const M = MODES[mode];
+  const today = new Date().toISOString().slice(0, 10);
+  const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const lines = [M.cols.concat(["Source link", "Extracted on"]).map(q).join(",")];
+  const ctx = { seen: new Set() };
+  results.filter((r) => r.status === "ok").forEach((r) => {
+    M.rows(r.data || {}, ctx).forEach((cells) => lines.push(cells.concat([r.url, today]).map(q).join(",")));
+  });
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "bodyzone_" + mode + "_" + today + ".csv";
+  a.click();
+});
+
+$("copy").addEventListener("click", async () => {
+  const M = MODES[mode];
+  const ctx = { seen: new Set() };
+  const clean = (v) => String(v == null ? "" : v).replace(/[\t\r\n]+/g, " ");
+  const lines = [M.cols.concat(["Source link"]).join("\t")];
+  results.filter((r) => r.status === "ok").forEach((r) => {
+    M.rows(r.data || {}, ctx).forEach((cells) => lines.push(cells.concat([r.url]).map(clean).join("\t")));
+  });
+  try { await navigator.clipboard.writeText(lines.join("\n")); alert("Copied. Open your Google Sheet, click cell A1 and press Ctrl+V."); }
+  catch (e) { alert("Could not copy automatically. Use Download CSV instead."); }
+});
+
+$("find").addEventListener("click", async () => {
+  const query = $("cat").value.replace("{area}", $("area").value.trim());
+  $("find").disabled = true; $("found").textContent = "Searching...";
+  try {
+    const resp = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, limit: 10, password: $("pw").value }) });
+    const out = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(out.error || "HTTP " + resp.status);
+    const list = out.results || [];
+    if (!list.length) { $("found").textContent = "No pages found. Try a different area or type."; }
+    else {
+      $("found").innerHTML = list.map((x, i) => '<label style="font-weight:400;display:block;margin:4px 0"><input type="checkbox" class="pick" checked value="' + esc(x.url) + '"> ' +
+        esc(x.title || x.url) + ' <a href="' + esc(x.url) + '" target="_blank" rel="noopener">open</a></label>').join("") +
+        '<button class="secondary" id="useSel" style="margin-top:6px">Add selected to links</button>';
+      $("useSel").addEventListener("click", () => {
+        const picked = [...document.querySelectorAll(".pick:checked")].map((c) => c.value);
+        const have = $("urls").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        $("urls").value = [...new Set(have.concat(picked))].join("\n");
+      });
+    }
+  } catch (e) { $("found").textContent = "Search failed: " + e.message; }
+  $("find").disabled = false;
+});
+
+setMode("gym");
+</script>
+</body>
+</html>
